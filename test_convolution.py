@@ -36,6 +36,24 @@ class OwnConv2d:
         return output
 
 
+    def vector_calc(self, tensor: np.ndarray, kernel: np.ndarray):
+        tensor = tensor.astype(np.float32)
+        
+        # (B, C_in, H, W) → (B, C_in, H_out, W_out, K, K)
+        patches = np.lib.stride_tricks.sliding_window_view(
+            tensor, 
+            (self._kernel_size, self._kernel_size), 
+            axis=(2, 3)
+        )
+        
+        # einsum: b - batch, c - in_channels, o - out_channels, x/y - spatial, i/j - kernel
+        output = np.einsum('bcxyij,ocij->boxy', patches, kernel)
+        return output.squeeze()
+
+
+
+
+
 # Prepare test data (e.g., MNIST-like 28x28 image)
 input_image = torch.randn(BATCH_SIZE, IN_CHANNELS, 28, 28).numpy()  # Random grayscale image
 kernel = torch.ones(OUT_CHANNELS, IN_CHANNELS, KERNEL_SIZE, KERNEL_SIZE).numpy() / 9.0    # Simple averaging kernel
@@ -44,6 +62,9 @@ kernel = torch.ones(OUT_CHANNELS, IN_CHANNELS, KERNEL_SIZE, KERNEL_SIZE).numpy()
 # Run emulator
 own_conv = OwnConv2d(in_channels=IN_CHANNELS, kernel_size=KERNEL_SIZE, out_channels=3)
 python_result = own_conv.calc(tensor=input_image, kernel=kernel).squeeze().detach().numpy()
+
+
+python_vec_result = own_conv.vector_calc(tensor=input_image, kernel=kernel)
 # result = convolution_emulator.convolve(input_image, kernel)
 
 
@@ -56,6 +77,7 @@ pytorch_result = conv(input_tensor).squeeze().detach().numpy()
 # Verify results
 # print("Emulator output shape:", result.sh/ape)
 print("Python Emulator output shape:", python_result.shape)
+print("Python Vector Emulator output shape:", python_vec_result.shape)
 print("PyTorch output shape:", pytorch_result.shape)
 print("Max difference pytoch vs custom python:", np.max(np.abs(python_result - pytorch_result)))
 # print("Max difference pytoch vs custom C++:", np.max(np.abs(result - pytorch_result)))
