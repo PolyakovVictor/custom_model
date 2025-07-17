@@ -41,7 +41,7 @@ class OwnConv2d:
         
         # (B, C_in, H, W) → (B, C_in, H_out, W_out, K, K)
         patches = np.lib.stride_tricks.sliding_window_view(
-            tensor, 
+            tensor,
             (self._kernel_size, self._kernel_size), 
             axis=(2, 3)
         )
