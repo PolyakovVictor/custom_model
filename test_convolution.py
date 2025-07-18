@@ -43,8 +43,8 @@ class OwnConv2d:
         patches = np.lib.stride_tricks.sliding_window_view(
             tensor,
             (self._kernel_size, self._kernel_size), 
-            axis=(2, 3)
-        )
+            axis=(2, 3) # type: ignore
+        ) # type: ignore
         
         # einsum: b - batch, c - in_channels, o - out_channels, x/y - spatial, i/j - kernel
         output = np.einsum('bcxyij,ocij->boxy', patches, kernel)
