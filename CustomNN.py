@@ -13,22 +13,27 @@ class CustomLinear:
     def __init__(self, in_features: int, out_features: int, bias: bool = True):
         self.in_features = in_features
         self.out_features = out_features
-
         self.W = torch.randn(out_features, in_features, requires_grad=True)
         self.b = torch.randn(out_features)
     
     def forward(self, x):
+        self.x = x
         output = self.W @ x + self.b
         return output
 
-    def backward(self,):
-        pass
-
+    def backward(self, dL_dy):
+        dL_dW = dL_dy.view(-1, 1) @ self.x.view(1, -1) # out_features x in_features
+        dL_db = dL_dy
+        dL_dx = self.W.t() @ dL_dy
+        return dL_dx, dL_dW, dL_db
 
 if __name__ == '__main__':
-    l1 = CustomLinear(5, 3)
-    print('Linear bias', l1.b)
-    print('Linear W', l1.W)
-    test = torch.randn(5)
-    print(f'test: {test}')
-    l1.forward(test)
+    layer = CustomLinear(5, 3)
+    x = torch.randn(5)
+    y = layer.forward(x)
+    dL_dy = torch.randn(3)
+
+    dL_dx, dL_dW, dL_db = layer.backward(dL_dy)
+    print('Gradient w.r.t input:', dL_dx)
+    print('Gradient w.r.t weights:', dL_dW)
+    print('Gradient w.r.t bias:', dL_db)
