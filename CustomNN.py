@@ -1,11 +1,9 @@
-import torch
-
 import torchvision.transforms as transforms
+import numpy as np
+
 from torchvision.datasets import FashionMNIST
 from torch.utils.data import DataLoader
 
-
-torch.set_grad_enabled(False)
 
 transform = transforms.ToTensor()
 train_dataset = FashionMNIST(root='../data', train=True, transform=transform)
@@ -15,13 +13,19 @@ test_dataset = FashionMNIST(root='../data', train=False, transform=transform)
 train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
+def softmax(x, axis=1):
+    x_max = np.max(x, axis=axis, keepdims=True)
+    e_x = np.exp(x - x_max)
+    return e_x / np.sum(e_x, axis=axis, keepdims=True)
+    
+
 class CustomReLU:
     def forward(self, x):
         self.mask = x > 0
         return x * self.mask
 
     def backward(self, dL_dy):
-        return dL_dy * self.mask.float()
+        return dL_dy * self.mask
     
 
 class CustomMLP:
@@ -51,22 +55,22 @@ class CustomLinear:
     def __init__(self, in_features: int, out_features: int, bias: bool = True):
         self.in_features = in_features
         self.out_features = out_features
-        self.W = torch.randn(out_features, in_features)
-        self.b = torch.randn(out_features)
+        self.W = np.random.randn(out_features, in_features) * 0.01
+        self.b = np.zeros(out_features)
 
-        self.dW = torch.zeros_like(self.W)
-        self.db = torch.zeros_like(self.b)
+        self.dW = np.zeros_like(self.W)
+        self.db = np.zeros_like(self.b)
 
     def forward(self, x):
         # x = x.view(-1, 28)
         self.x = x
-        output = self.W @ x.view(-1) + self.b
+        output = self.W @ x.reshape(-1) + self.b
         return output
 
     def backward(self, dL_dy):
-        self.dW = dL_dy.view(-1, 1) @ self.x.view(1, -1) # out_features x in_features
+        self.dW = dL_dy.reshape(-1, 1) @ self.x.reshape(1, -1) # out_features x in_features
         self.db = dL_dy
-        dL_dx = self.W.t() @ dL_dy
+        dL_dx = self.W.T @ dL_dy
         return dL_dx
     
     def step(self, learning_rate: float = 0.0001):
@@ -76,44 +80,44 @@ class CustomLinear:
         self.b = b
 
 if __name__ == '__main__':
-    torch.manual_seed(0)
     model = CustomMLP()
     learning_rate = 0.0001
 
-    x = torch.randn(5)
     losses = []
 
     for epoch in range(10):
         for batch, (images, labels) in enumerate(train_loader):
-            images = images.view(-1, 784)[0]
+            images = images.numpy()
+            labels = labels.numpy()
+            images = images.reshape(-1, 784)[0]
             y_pred = model.forward(images)
-            y_true = torch.zeros(10)
-            y_true[labels.item()] = 1
-            loss = torch.mean((y_pred - y_true) ** 2) # .mean arithmetic mean 
-            losses.append(loss.item())
+            y_true = np.zeros(10)
+            y_true[int(labels.item())] = 1
+            sq_loss = (y_pred - y_true) ** 2
+            loss = sum(sq_loss)/len(sq_loss) # .mean arithmetic mean 
+            losses.append(loss)
             
-            dL_dy = 2 * (y_pred - y_true) / y_pred.numel()
+            dL_dy = 2 * (y_pred - y_true) / len(y_pred)
 
             model.backward(dL_dy)
-            with torch.no_grad():
-                model.step(learning_rate)
+            model.step(learning_rate)
 
             if batch % 1000 == 0:
-                print(f"Epoch {epoch}: loss = {loss.item()}")
+                print(f"Epoch {epoch}: loss = {loss}")
     len_test_dataset = len(test_loader)
     correct_result = 0
     for batch, (images, labels) in enumerate(test_loader):
-        images = images.view(-1, 784)[0]
+        images = images.numpy()
+        labels = labels.numpy()
+        images = images.reshape(-1, 784)[0]
         y_pred = model.forward(images)
-        probs = torch.softmax(y_pred, dim=0)
-        predicted_class = torch.argmax(probs).item()
-        y_true = torch.zeros(10)
+        probs = softmax(y_pred[np.newaxis, :], axis=1)[0]
+        predicted_class = np.argmax(probs)
+        y_true = np.zeros(10)
         y_true[labels.item()] = 1
-        loss = torch.mean((y_pred - y_true) ** 2) 
-        losses.append(loss.item())
         if predicted_class == labels.item():
             correct_result += 1
         print(f'Prediction probabilities: {probs}')
         print(f'Predicted class: {predicted_class}')
         print(f'Real class: {labels.item()}')
-    print(f'Currect result: {correct_result}')
+    print(f'Correct result: {correct_result}')
