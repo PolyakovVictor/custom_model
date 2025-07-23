@@ -10,7 +10,7 @@ train_dataset = FashionMNIST(root='../data', train=True, transform=transform)
 test_dataset = FashionMNIST(root='../data', train=False, transform=transform)
 
 # subset = torch.utils.data.Subset(train_dataset, range(1000))
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
 def softmax(x, axis=1):
@@ -34,7 +34,7 @@ class CustomMLP:
         self.relu = CustomReLU()
         self.fc2 = CustomLinear(50, 10)
 
-    def forward(self, x):
+    def forward(self, x): # x: (batch_size, 784)
         x = self.fc1.forward(x)
         x = self.relu.forward(x)
         x = self.fc2.forward(x)
@@ -55,7 +55,7 @@ class CustomLinear:
     def __init__(self, in_features: int, out_features: int, bias: bool = True):
         self.in_features = in_features
         self.out_features = out_features
-        self.W = np.random.randn(out_features, in_features) * 0.01
+        self.W = np.random.randn(in_features, out_features) * 0.01
         self.b = np.zeros(out_features)
 
         self.dW = np.zeros_like(self.W)
@@ -64,14 +64,13 @@ class CustomLinear:
     def forward(self, x):
         # x = x.view(-1, 28)
         self.x = x
-        output = self.W @ x.reshape(-1) + self.b
-        return output
+        return x @ self.W + self.b
 
     def backward(self, dL_dy):
-        self.dW = dL_dy.reshape(-1, 1) @ self.x.reshape(1, -1) # out_features x in_features
-        self.db = dL_dy
-        dL_dx = self.W.T @ dL_dy
-        return dL_dx
+        self.dW = self.x.T @ dL_dy # out_features x in_features
+        self.db = dL_dy.sum(axis=0)
+        # dL_dx = self.W.T @ dL_dy
+        return dL_dy @ self.W.T
     
     def step(self, learning_rate: float = 0.0001):
         w = self.W - learning_rate * self.dW
@@ -89,15 +88,17 @@ if __name__ == '__main__':
         for batch, (images, labels) in enumerate(train_loader):
             images = images.numpy()
             labels = labels.numpy()
-            images = images.reshape(-1, 784)[0]
+            images = images.reshape(images.shape[0], -1)
+            # images = images.reshape(-1, 784)[0]
             y_pred = model.forward(images)
-            y_true = np.zeros(10)
-            y_true[int(labels.item())] = 1
+            y_true = np.zeros((images.shape[0],10))
+            for i,v in enumerate(labels):
+                y_true[i][v] = 1
             sq_loss = (y_pred - y_true) ** 2
-            loss = sum(sq_loss)/len(sq_loss) # .mean arithmetic mean 
+            loss = np.mean(sq_loss) # .mean arithmetic mean 
             losses.append(loss)
             
-            dL_dy = 2 * (y_pred - y_true) / len(y_pred)
+            dL_dy = 2 * (y_pred - y_true) / images.shape[0]
 
             model.backward(dL_dy)
             model.step(learning_rate)
