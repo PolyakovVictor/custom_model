@@ -13,6 +13,16 @@ test_dataset = FashionMNIST(root='../data', train=False, transform=transform)
 train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
+def cross_entropy_loss(y_pred, y_true):
+    exps = np.exp(y_pred-np.max(y_pred, axis=1, keepdims=True))
+    probs = exps / np.sum(exps, axis=1, keepdims=True)
+    loss =  -np.sum(y_true * np.log(probs + 1e-9)) / y_true.shape[0]
+
+    return loss, probs
+
+def cross_entropy_grad(probs, y_true):
+    return (probs - y_true) / y_true.shape[0]
+
 def softmax(x, axis=1):
     x_max = np.max(x, axis=axis, keepdims=True)
     e_x = np.exp(x - x_max)
@@ -80,7 +90,7 @@ class CustomLinear:
 
 if __name__ == '__main__':
     model = CustomMLP()
-    learning_rate = 0.0001
+    learning_rate = 0.001
 
     losses = []
 
@@ -94,11 +104,12 @@ if __name__ == '__main__':
             y_true = np.zeros((images.shape[0],10))
             for i,v in enumerate(labels):
                 y_true[i][v] = 1
-            sq_loss = (y_pred - y_true) ** 2
-            loss = np.mean(sq_loss) # .mean arithmetic mean 
+            # sq_loss = (y_pred - y_true) ** 2
+            # loss = np.mean(sq_loss) # .mean arithmetic mean 
+            loss, probs = cross_entropy_loss(y_pred=y_pred, y_true=y_true)
             losses.append(loss)
             
-            dL_dy = 2 * (y_pred - y_true) / images.shape[0]
+            dL_dy = cross_entropy_grad(probs=probs, y_true=y_true)
 
             model.backward(dL_dy)
             model.step(learning_rate)
